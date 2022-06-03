@@ -3,10 +3,11 @@
 #include <time.h>
 #include <random>
 #include <iomanip>
+#include <math.h>
 
 #include <boost/random/random_device.hpp>
 #include <boost/range/algorithm.hpp>
-#include<boost/range/numeric.hpp>
+#include <boost/range/numeric.hpp>
 
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/numeric/ublas/vector.hpp>
@@ -21,15 +22,19 @@ double sigmoid(double x){
 }
 
 double relu(double x){
-    return x > 0 ? x : 0;
+    return x > 0 ? x : 0.0;
 }
 
-double tanh(double x){
+double tanhiperbolica(double x){
     return tanh(x);
 }
 
 double square(double x){
     return x*x;
+}
+
+double exponencial(double x){
+    return exp(x);
 }
 
 class MLP{
@@ -136,11 +141,11 @@ void MLP::forward_propagation(bool debug = false){
             else if(this->activation_function_name == "relu")
                 boost::range::transform(out_layer, out_layer.begin(), relu);
             else if(this->activation_function_name == "tanh")
-                boost::range::transform(out_layer, out_layer.begin(), tanh);
+                boost::range::transform(out_layer, out_layer.begin(), tanhiperbolica);
             else //Sigmoid por defecto
                 boost::range::transform(out_layer, out_layer.begin(), sigmoid);
             if(debug) std::cout << "\tact_funct(out): " << out_layer << "\n";
-            
+
             //Guardamos la salida de cada capa (la última salida no corresponde a alguna capa de la red)
             if(i_matrix < this->Ws_size - 1)
                 for(int j = 0; j < out_layer.size(); j++)
@@ -150,7 +155,7 @@ void MLP::forward_propagation(bool debug = false){
         for(int j = 0; j < out_layer.size(); j++) this->out_o(i, j) = out_layer(j);
         //Aplicamos la función softmax en out_o
         bnu::vector<double> out_layer_softmax(out_layer);
-        boost::range::transform(out_layer_softmax, out_layer_softmax.begin(), exp);
+        boost::range::transform(out_layer_softmax, out_layer_softmax.begin(), exponencial);
         double denominator = boost::accumulate(out_layer_softmax, 0.0);
         out_layer_softmax /= denominator;
         //Guardamos la salida softmax del dato en la matriz de salida softmax
@@ -191,13 +196,39 @@ void MLP::backward_propagation(bool debug = false){
                 ones_softmax -= out_o_softmax_i_vector;
                 //(S'o - Sd) * (S'o) * (1 - S'o)
                 delta = simple_product(delta, ones_softmax);
-                //Derivada de la función de activación: (1 - So) * (So)
-                //(S'o - Sd) * (S'o) * (1 - S'o) * [ (So) ]
-                bnu::vector<double> ones(this->classes, 1.0);
-                ones -= out_o_i_vector;
-                delta = simple_product(delta, out_o_i_vector);
-                //(S'o - Sd) * (S'o) * (1 - S'o) * [ (So) * (1 - So) ]        [] -> derivada de la función de activación
-                delta = simple_product(delta, ones);
+                if(this->activation_function_name == "sigmoid"){
+                    //Derivada de la función de activación: (1 - So) * (So)
+                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (So) ]
+                    bnu::vector<double> ones(this->classes, 1.0);
+                    ones -= out_o_i_vector;
+                    delta = simple_product(delta, out_o_i_vector);
+                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (So) * (1 - So) ]        [] -> derivada de la función de activación
+                    delta = simple_product(delta, ones);
+                }else if(this->activation_function_name == "tanh"){
+                    //Derivada de la función de activación: (1 - So) * (1 + So)
+                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (1 - So) ]
+                    bnu::vector<double> ones_minus(this->classes, 1.0);
+                    ones_minus -= out_o_i_vector;
+                    delta = simple_product(delta, ones_minus);
+                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (1 - So) * (1 + So) ]
+                    bnu::vector<double> ones_plus(this->classes, 1.0);
+                    ones_plus -= out_o_i_vector;
+                    delta = simple_product(delta, ones_plus);
+                }else if(this->activation_function_name == "relu"){
+                    //Derivada de la función de activación: 0 si So < 0, 1 si So > 0
+                    bnu::vector<double> mask(this->classes, 0.0);
+                    for(int i = 0; i < this->classes; i++)
+                        if(out_o_i_vector(i) > 0) mask(i) = 1.0;
+                    delta = simple_product(delta, mask);
+                }else{//Sigmoid por defecto
+                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (So) ]
+                    bnu::vector<double> ones(this->classes, 1.0);
+                    ones -= out_o_i_vector;
+                    delta = simple_product(delta, out_o_i_vector);
+                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (So) * (1 - So) ]        [] -> derivada de la función de activación
+                    delta = simple_product(delta, ones);
+                }
+                
                 if(debug) std::cout << "\tdelta = " << delta << "\n";
                 
                 //Guardo el delta para la siguiente matriz
@@ -234,12 +265,34 @@ void MLP::backward_propagation(bool debug = false){
                 bnu::matrix_row<bnu::matrix<double>> out_neurons_j_vector(this->out_neurons[i_matrix], i_data);
                 if(debug) std::cout << "\tout_neurons_j = " << out_neurons_j_vector << "\n";
 
-                //New delta: delta * [ (Sj) * (1 - Sj) ]  [] -> derivada de la función de activación
-                delta = simple_product(delta, out_neurons_j_vector);
-                bnu::vector<double> ones(out_neurons_j_vector.size(), 1.0);
-                ones -= out_neurons_j_vector;
-                delta = simple_product(delta, ones);
-
+                if(this->activation_function_name == "sigmoid"){
+                    //New delta: delta * [ (Sj) * (1 - Sj) ]  [] -> derivada de la función de activación
+                    delta = simple_product(delta, out_neurons_j_vector);
+                    bnu::vector<double> ones(out_neurons_j_vector.size(), 1.0);
+                    ones -= out_neurons_j_vector;
+                    delta = simple_product(delta, ones);
+                }else if(this->activation_function_name == "tanh"){
+                    //New delta: delta * [ (1 + Sj) * (1 - Sj) ]  [] -> derivada de la función de activación
+                    bnu::vector<double> ones_minus(out_neurons_j_vector.size(), 1.0);
+                    ones_minus -= out_neurons_j_vector;
+                    delta = simple_product(delta, ones_minus);
+                    bnu::vector<double> ones_plus(out_neurons_j_vector.size(), 1.0);
+                    ones_plus += out_neurons_j_vector;
+                    delta = simple_product(delta, ones_plus);
+                }else if(this->activation_function_name == "relu"){
+                    //New delta: delta * [ vector de 0s y 1s ]  [] -> derivada de la función de activación
+                    bnu::vector<double> mask(out_neurons_j_vector.size(), 0.0);
+                    for(int i = 0; i < out_neurons_j_vector.size(); i++)
+                        if(out_neurons_j_vector(i) > 0) mask(i) = 1.0;
+                    delta = simple_product(delta, mask);
+                }else{//Sigmoid por defecto
+                    //New delta: delta * [ (Sj) * (1 - Sj) ]  [] -> derivada de la función de activación
+                    delta = simple_product(delta, out_neurons_j_vector);
+                    bnu::vector<double> ones(out_neurons_j_vector.size(), 1.0);
+                    ones -= out_neurons_j_vector;
+                    delta = simple_product(delta, ones);
+                }
+                
                 if(debug) std::cout << "\tdelta_new = " << delta << "\n";
                 //Actualizo el nuevo delta
                 deltas[i_data] = delta;

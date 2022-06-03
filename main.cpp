@@ -14,12 +14,12 @@ int main(){
 
     bnu::vector<int> neuronas_by_layer(3); //2 capas
     neuronas_by_layer <<= 10, 15, 12;
-    std::string activation_function_name = "sigmoid";
+    std::string activation_function_name = "relu";
     
-    MLP mlp(neuronas_by_layer, activation_function_name);
+    MLP mlp(neuronas_by_layer);
     int epoch = 1000;
-    double alpha = 0.45;
-    mlp.train(x_train, y_train, x_validation, y_validation, epoch, alpha, false);
+    double alpha = 0.8;
+    mlp.train(x_train, y_train, x_validation, y_validation, epoch, alpha, activation_function_name, 0);
 
     return 0;
 }
