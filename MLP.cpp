@@ -49,6 +49,8 @@ private:
     double alpha;
     std::string activation_function_name;
 
+    bnu::vector<int> input_model, output_model, output_model_softmax;
+
     bnu::matrix<double> simple_product(bnu::matrix<double> &m1, bnu::matrix<double> &m2);
     bnu::matrix<double> simple_product(bnu::matrix<double> &m, bnu::vector<double> &v);
     bnu::matrix<double> simple_product(bnu::matrix<double> &m, bnu::matrix_row<bnu::matrix<double>> &v);
@@ -56,7 +58,7 @@ private:
     bnu::matrix<double> simple_product(bnu::vector<double> &v, bnu::matrix_row<bnu::matrix<double>> &mr);
     
     void fill_w(bnu::matrix<double> &m);
-    void forward_propagation(bool debug);
+    void forward_propagation(bool for_training ,bool debug);
     void backward_propagation(bool debug);
     void error(bool debug);
     
@@ -64,7 +66,8 @@ public:
     MLP(bnu::vector<int> &neuronas_by_layer);
     ~MLP();
     void train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu::matrix<double> &x_validation, bnu::matrix<double> &y_validation, int epochs, double alpha, std::string activation_function_name, bool debug);
-    //TODO: void predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test);
+    void predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test);
+    int predict_one(bnu::vector<double> &input_to_predict);
 };
 
 void MLP::fill_w(bnu::matrix<double> &m){
@@ -116,19 +119,64 @@ bnu::matrix<double> MLP::simple_product(bnu::vector<double> &v, bnu::matrix_row<
     return m_r;
 }
 
-void MLP::forward_propagation(bool debug = false){
-    if(debug) std::cout << "\n-------------Forward propagation------------\n";
-    for(int i = 0; i < this->n; i++){
-        bnu::matrix_row<bnu::matrix<double>> data_i(this->x_train, i);
-        bnu::vector<double> out_layer(data_i);
-        if(debug) std::cout << "input " << i << ": " << data_i << "\n";
-        //Para cada matriz, iniciamos desde el dato (data_i) y terminamos con un out_o (output obtenido)
-        //Se guarda la salida de cada neura de cada capa
+void MLP::forward_propagation(bool for_training, bool debug = false){
+    if(for_training){
+        if(debug) std::cout << "\n-------------Forward propagation------------\n";
+        for(int i = 0; i < this->n; i++){
+            bnu::matrix_row<bnu::matrix<double>> data_i(this->x_train, i);
+            bnu::vector<double> out_layer(data_i);
+            if(debug) std::cout << "input " << i << ": " << data_i << "\n";
+            //Para cada matriz, iniciamos desde el dato (data_i) y terminamos con un out_o (output obtenido)
+            //Se guarda la salida de cada neura de cada capa
+            for(int i_matrix = 0; i_matrix < this->Ws_size; i_matrix++){
+                //Define el input de la matriz (1 al inicio por el bias)
+                bnu::vector<double> input_layer(out_layer.size() + 1);
+                input_layer <<= 1, out_layer;
+                if(debug) std::cout << "For matrix " << i_matrix << ":\n";
+                if(debug) std::cout << "\tinput: " << input_layer << "\n";
+                
+                //Producto input x matriz
+                out_layer = bnu::prod(input_layer, Ws[i_matrix]);
+                if(debug) std::cout << "\toutput: " << out_layer << "\n";
+                
+                //Aplicamos la función de activación
+                if(this->activation_function_name == "sigmoid")
+                    boost::range::transform(out_layer, out_layer.begin(), sigmoid);
+                else if(this->activation_function_name == "relu")
+                    boost::range::transform(out_layer, out_layer.begin(), relu);
+                else if(this->activation_function_name == "tanh")
+                    boost::range::transform(out_layer, out_layer.begin(), tanhiperbolica);
+                else //Sigmoid por defecto
+                    boost::range::transform(out_layer, out_layer.begin(), sigmoid);
+                if(debug) std::cout << "\tact_funct(out): " << out_layer << "\n";
+
+                //Guardamos la salida de cada capa (la última salida no corresponde a alguna capa de la red)
+                if(i_matrix < this->Ws_size - 1)
+                    for(int j = 0; j < out_layer.size(); j++)
+                        out_neurons[i_matrix](i, j) = out_layer(j);
+            }
+            //Guardamos la salida del dato en la matriz de salida
+            for(int j = 0; j < out_layer.size(); j++) this->out_o(i, j) = out_layer(j);
+            //Aplicamos la función softmax en out_o
+            bnu::vector<double> out_layer_softmax(out_layer);
+            boost::range::transform(out_layer_softmax, out_layer_softmax.begin(), exponencial);
+            double denominator = boost::accumulate(out_layer_softmax, 0.0);
+            out_layer_softmax /= denominator;
+            //Guardamos la salida softmax del dato en la matriz de salida softmax
+            for(int j = 0; j < out_layer_softmax.size(); j++) this->out_o_softmax(i, j) = out_layer_softmax(j);
+            if(debug) std::cout << "output " << i << ": " << out_layer << "\n";
+            if(debug) std::cout << "output softmax " << i << ": " << out_layer_softmax << "\n";
+        }
+        if(debug) std::cout << "\n-----------Forward propagation End----------\n";
+    }else{
+        //Forward para input_model
+        bnu::vector<double> out_layer(this->input_model);
+        if(debug) std::cout << "input model = " << this->input_model << "\n";
+        
         for(int i_matrix = 0; i_matrix < this->Ws_size; i_matrix++){
             //Define el input de la matriz (1 al inicio por el bias)
             bnu::vector<double> input_layer(out_layer.size() + 1);
             input_layer <<= 1, out_layer;
-            if(debug) std::cout << "For matrix " << i_matrix << ":\n";
             if(debug) std::cout << "\tinput: " << input_layer << "\n";
             
             //Producto input x matriz
@@ -145,25 +193,18 @@ void MLP::forward_propagation(bool debug = false){
             else //Sigmoid por defecto
                 boost::range::transform(out_layer, out_layer.begin(), sigmoid);
             if(debug) std::cout << "\tact_funct(out): " << out_layer << "\n";
-
-            //Guardamos la salida de cada capa (la última salida no corresponde a alguna capa de la red)
-            if(i_matrix < this->Ws_size - 1)
-                for(int j = 0; j < out_layer.size(); j++)
-                    out_neurons[i_matrix](i, j) = out_layer(j);
         }
-        //Guardamos la salida del dato en la matriz de salida
-        for(int j = 0; j < out_layer.size(); j++) this->out_o(i, j) = out_layer(j);
-        //Aplicamos la función softmax en out_o
-        bnu::vector<double> out_layer_softmax(out_layer);
-        boost::range::transform(out_layer_softmax, out_layer_softmax.begin(), exponencial);
-        double denominator = boost::accumulate(out_layer_softmax, 0.0);
-        out_layer_softmax /= denominator;
-        //Guardamos la salida softmax del dato en la matriz de salida softmax
-        for(int j = 0; j < out_layer_softmax.size(); j++) this->out_o_softmax(i, j) = out_layer_softmax(j);
-        if(debug) std::cout << "output " << i << ": " << out_layer << "\n";
-        if(debug) std::cout << "output softmax " << i << ": " << out_layer_softmax << "\n";
+
+        this->output_model = out_layer;
+        //Aplicamos la función softmax en output_model
+        this->output_model_softmax = this->output_model;
+        boost::range::transform(this->output_model_softmax, this->output_model_softmax.begin(), exponencial);
+        double denominator = boost::accumulate(this->output_model_softmax, 0.0);
+        this->output_model_softmax /= denominator;
+        
+        if(debug) std::cout << "output = " << this->output_model << "\n";
+        if(debug) std::cout << "output softmax = " << this->output_model_softmax << "\n";
     }
-    if(debug) std::cout << "\n-----------Forward propagation End----------\n";
 }
 
 void MLP::backward_propagation(bool debug = false){
@@ -393,7 +434,7 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
 
     for(int epoch = 1; epoch <= epochs; epoch++){
         if(debug) std::cout << "\n*************************Epoch " << epoch << "*************************\n";
-        this->forward_propagation(debug);
+        this->forward_propagation(true, debug);
         this->error(debug);
         this->backward_propagation(debug);
     }
@@ -422,3 +463,42 @@ void MLP::error(bool debug = false){
     std::cout << "Error training: " << error_training << "\n";
     if(debug) std::cout << "\n----------Error End-------------\n";
 }
+
+void MLP::predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test){
+    int aciertos = 0;
+    for(int i_test = 0; i_test < x_test.size1(); i_test++){
+        bnu::matrix_row<bnu::matrix<double>> x_test_row(x_test, i_test);
+        bnu::matrix_row<bnu::matrix<double>> y_test_row(y_test, i_test);
+        bnu::vector<double> x_test_vector(x_test_row);
+        int i_predicho = this->predict_one(x_test_vector);
+        
+        //Buscar en y_test_row el mayor valor.
+        int i_esperado = 0;
+        double mayor = y_test_row(0);
+        for(int i = 1; i < y_test_row.size(); i++){
+            if(y_test_row(i) > mayor){
+                mayor = y_test_row(i);
+                i_esperado = i;
+            }
+        }
+        if(i_esperado == i_predicho)
+            aciertos++;
+    }
+    std::cout << "Aciertos: " << aciertos << "\n";
+    std::cout << "Porcentaje de aciertos: " << (double)aciertos / (double)x_test.size1() * 100 << "\n";
+}
+
+int MLP::predict_one(bnu::vector<double> &input_to_predict){
+    this->input_model = input_to_predict;
+    this->forward_propagation(false, false);
+    //Buscar en output_model_softmax el mayor valor.
+    int clase = 0;
+    double mayor = this->output_model_softmax(0);
+    for(int i = 1; i < this->output_model_softmax.size(); i++){
+        if(this->output_model_softmax(i) > mayor){
+            mayor = this->output_model_softmax(i);
+            clase = i;
+        }
+    }
+    return clase;
+}   
