@@ -1,10 +1,53 @@
 #include "MLP.cpp"
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/value.h>
+#include <string>
 bnu::matrix<double> x_train, y_train, x_validation, y_validation, x_test, y_test;
 
 std::string file_input, file_output;
 
 void read(){
-    //read matrixes
+    std::ifstream *file=new std::ifstream("encodes/img_encodings_1.json");
+    Json::Value actualJson;
+    Json::Reader reader;
+    
+    reader.parse(*file,actualJson);
+    bnu::matrix<int> a(2,2);
+
+    //cout<<"Total json data:"<<endl<<actualJson<<endl;
+    std::cout<<actualJson["Train"]["Classes"].size()<<std::endl;
+    //cout<<actualJson["Train"]["Images"]<<endl;
+    //cout<<actualJson["Validation"]["Classes"]<<endl;
+    //cout<<actualJson["Validation"]["Images"]<<endl;
+    std::vector<std::string> tipos = {"Train","Validation","Test"};
+    std::vector<std::string> xy = {"Classes","Images"};
+
+    std::vector<bnu::matrix<double>> matrixes;
+
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 2; j++)
+        {
+            int tam_clases_t_fil = actualJson[tipos[i]][xy[j]].size();
+            int tam_clases_t_col = actualJson[tipos[i]][xy[j]][0].size();
+            bnu::matrix<double> matr(tam_clases_t_fil,tam_clases_t_col);
+            for (int i1 = 0; i1 <  tam_clases_t_fil ;i1++)
+            {
+                for (int j1 = 0; j1 < tam_clases_t_col; j1++)
+                {
+                    matr(i1,j1) = (actualJson[tipos[i]][xy[j]][i1][j1]).asDouble();
+                }
+                
+            }
+            matrixes.push_back(matr);
+        }
+    }
+    x_train = matrixes[0];
+    y_train = matrixes[1];
+    x_validation = matrixes[2];
+    y_validation = matrixes[3];
+    x_test = matrixes[4];
+    y_test = matrixes[5];
 }
 
 int main(int argc, char *argv[]){
