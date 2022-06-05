@@ -4,6 +4,7 @@
 #include <random>
 #include <iomanip>
 #include <math.h>
+#include <fstream>
 
 #include <boost/random/random_device.hpp>
 #include <boost/range/algorithm.hpp>
@@ -48,8 +49,10 @@ private:
     std::vector<bnu::matrix<double>> out_neurons;
     double alpha;
     std::string activation_function_name;
+    std::vector<double> errors_training, errors_validation;
 
     bnu::vector<int> input_model, output_model, output_model_softmax;
+    bnu::matrix<double> output_model_softmax_matrix;
 
     bnu::matrix<double> simple_product(bnu::matrix<double> &m1, bnu::matrix<double> &m2);
     bnu::matrix<double> simple_product(bnu::matrix<double> &m, bnu::vector<double> &v);
@@ -67,13 +70,14 @@ public:
     ~MLP();
     void train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu::matrix<double> &x_validation, bnu::matrix<double> &y_validation, int epochs, double alpha, std::string activation_function_name, bool debug);
     void predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test);
-    int predict_one(bnu::vector<double> &input_to_predict);
+    void predict_one(bnu::vector<double> &input_to_predict);
+    void write_errors(std::string filename);
 };
 
 void MLP::fill_w(bnu::matrix<double> &m){
     std::random_device rd;
     std::default_random_engine generator(rd()); // rd() provides a random seed
-    std::uniform_real_distribution<double> distribution(-1.0, 1.0);
+    std::uniform_real_distribution<double> distribution(0.0, 1.0);
     for (int i = 0; i < m.size1(); i++)
         for (int j = 0; j < m.size2(); j++)
             m(i, j) = distribution(generator);
@@ -368,8 +372,8 @@ void MLP::backward_propagation(bool debug = false){
             std::cout << "\tW_deriv[" << i << "] = " << Ws_derivades[i] << "\n";
     }
     
-    for(bnu::matrix<double> &W : this->Ws)
-        W -= this->alpha * Ws_derivades[&W - &Ws[0]];
+    for(int i = 0; i < this->Ws.size(); i++)
+        this->Ws[i] -= this->alpha * Ws_derivades[i];
     
     if(debug){
         std::cout << "Post Ws:\n";
@@ -445,60 +449,71 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
 
 void MLP::error(bool debug = false){
     if(debug) std::cout << "\n------------Error---------------\n";
-    bnu::matrix<double> error_matrix = this->out_o_softmax - this->y_train;
+    bnu::matrix<double> error_matrix_training = this->out_o_softmax - this->y_train;
+    bnu::matrix<double> error_matrix_validation = this->out_o_softmax - this->y_validation;
     if(debug){
         std::cout << "out_o = " << this->out_o << "\n";
         std::cout << "out_o_softmax = " << this->out_o_softmax << "\n";
         std::cout << "y_train = " << this->y_train << "\n";
-        std::cout << "error_matrix = " << error_matrix << "\n";
+        std::cout << "y_validation = " << this->y_validation << "\n";
+        std::cout << "error_matrix_training = " << error_matrix_training << "\n";
+        std::cout << "error_matrix_validation = " << error_matrix_validation << "\n";
     }
     //boost::range::transform(error_matrix, error_matrix.begin1(), square);
-    for(int i = 0; i < error_matrix.size1(); i++)
-        for(int j = 0; j < error_matrix.size2(); j++)
-            error_matrix(i, j) = error_matrix(i, j) * error_matrix(i, j);
-    if(debug) std::cout << "square error = " << error_matrix << "\n";
-    error_matrix = error_matrix / 2.0;
-    if(debug) std::cout << "square / 2.0 error = " << error_matrix << "\n";
-    double error_training = bnu::sum(bnu::prod(bnu::scalar_vector<double>(error_matrix.size1()), error_matrix));
+    for(int i = 0; i < error_matrix_training.size1(); i++){
+        for(int j = 0; j < error_matrix_training.size2(); j++){
+            error_matrix_training(i, j) = error_matrix_training(i, j) * error_matrix_training(i, j);
+            error_matrix_validation(i, j) = error_matrix_validation(i, j) * error_matrix_validation(i, j);
+        }
+    }
+
+    if(debug) std::cout << "square error training = " << error_matrix_training << "\n";
+    if(debug) std::cout << "square error validation = " << error_matrix_validation << "\n";
+    error_matrix_training = error_matrix_training / 2.0;
+    error_matrix_validation = error_matrix_validation / 2.0;
+    if(debug) std::cout << "square / 2.0 error training = " << error_matrix_training << "\n";
+    if(debug) std::cout << "square / 2.0 error validation = " << error_matrix_validation << "\n";
+    double error_training = bnu::sum(bnu::prod(bnu::scalar_vector<double>(error_matrix_training.size1()), error_matrix_training));
+    double error_validation = bnu::sum(bnu::prod(bnu::scalar_vector<double>(error_matrix_validation.size1()), error_matrix_validation));
+    this->errors_training.push_back(error_training);
+    this->errors_validation.push_back(error_validation);
     std::cout << "Error training: " << error_training << "\n";
+    std::cout << "Error validation: " << error_validation << "\n";
     if(debug) std::cout << "\n----------Error End-------------\n";
 }
 
 void MLP::predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test){
-    int aciertos = 0;
+    output_model_softmax_matrix.resize(x_test.size1(), this->classes);
     for(int i_test = 0; i_test < x_test.size1(); i_test++){
         bnu::matrix_row<bnu::matrix<double>> x_test_row(x_test, i_test);
         bnu::matrix_row<bnu::matrix<double>> y_test_row(y_test, i_test);
         bnu::vector<double> x_test_vector(x_test_row);
-        int i_predicho = this->predict_one(x_test_vector);
+        this->predict_one(x_test_vector);
         
-        //Buscar en y_test_row el mayor valor.
-        int i_esperado = 0;
-        double mayor = y_test_row(0);
-        for(int i = 1; i < y_test_row.size(); i++){
-            if(y_test_row(i) > mayor){
-                mayor = y_test_row(i);
-                i_esperado = i;
-            }
-        }
-        if(i_esperado == i_predicho)
-            aciertos++;
+        //Escribe el output en la matriz
+        for(int i = 0; i < this->classes; i++)
+            this->output_model_softmax_matrix(i_test, i) = this->output_model_softmax(i);
     }
-    std::cout << "Aciertos: " << aciertos << "\n";
-    std::cout << "Porcentaje de aciertos: " << (double)aciertos / (double)x_test.size1() * 100 << "\n";
 }
 
-int MLP::predict_one(bnu::vector<double> &input_to_predict){
+void MLP::predict_one(bnu::vector<double> &input_to_predict){
     this->input_model = input_to_predict;
     this->forward_propagation(false, false);
-    //Buscar en output_model_softmax el mayor valor.
-    int clase = 0;
-    double mayor = this->output_model_softmax(0);
-    for(int i = 1; i < this->output_model_softmax.size(); i++){
-        if(this->output_model_softmax(i) > mayor){
-            mayor = this->output_model_softmax(i);
-            clase = i;
-        }
-    }
-    return clase;
+    return;
 }   
+
+void MLP::write_errors(std::string filename){
+    std::ofstream file;
+    /*
+    write errors_training
+    write errors_validation
+    write output_model_softmax_matrix
+    */
+    /*file.open(filename);
+    file << errors_training.size() << "\n";
+    for(int i = 0; i < this->errors_training.size(); i++)
+        file << this->errors_training[i] << "\n";
+    for(int i = 0; i < this->errors_training.size(); i++)
+        file << this->errors_validation[i] << "\n";   
+    file.close();*/
+}
