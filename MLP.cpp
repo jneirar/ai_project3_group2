@@ -60,7 +60,6 @@ private:
     bnu::matrix<double> simple_product(bnu::matrix_row<bnu::matrix<double>> &v1, bnu::matrix_row<bnu::matrix<double>> &v2);
     bnu::matrix<double> simple_product(bnu::vector<double> &v, bnu::matrix_row<bnu::matrix<double>> &mr);
     
-    void fill_w(bnu::matrix<double> &m);
     void forward_propagation(bool for_training ,bool debug);
     void backward_propagation(bool debug);
     void error(bool debug);
@@ -68,20 +67,11 @@ private:
 public:
     MLP(bnu::vector<int> &neuronas_by_layer);
     ~MLP();
-    void train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu::matrix<double> &x_validation, bnu::matrix<double> &y_validation, int epochs, double alpha, std::string activation_function_name, bool debug);
+    void train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu::matrix<double> &x_validation, bnu::matrix<double> &y_validation, int epochs, double alpha, std::string activation_function_name, int seed, bool debug);
     void predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test);
     void predict_one(bnu::vector<double> &input_to_predict);
     void write_errors(std::string filename);
 };
-
-void MLP::fill_w(bnu::matrix<double> &m){
-    std::random_device rd;
-    std::default_random_engine generator(rd()); // rd() provides a random seed
-    std::uniform_real_distribution<double> distribution(0.0, 1.0);
-    for (int i = 0; i < m.size1(); i++)
-        for (int j = 0; j < m.size2(); j++)
-            m(i, j) = distribution(generator);
-}
 
 bnu::matrix<double> MLP::simple_product(bnu::matrix<double> &m1, bnu::matrix<double> &m2){
     bnu::matrix<double> m3(m1.size1(), m1.size2());
@@ -395,7 +385,7 @@ MLP::~MLP(){
     //dtor
 }
 
-void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu::matrix<double> &x_validation, bnu::matrix<double> &y_validation, int epochs, double alpha, std::string activation_function_name = "sigmoid",bool debug = false){
+void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu::matrix<double> &x_validation, bnu::matrix<double> &y_validation, int epochs, double alpha, std::string activation_function_name = "sigmoid", int seed = 0, bool debug = false){
     //TODO: Función para resetear variables privadas
     this->x_train = x_train;
     this->y_train = y_train;
@@ -418,9 +408,15 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
 
     for(int i = 0; i < this->Ws_size; i++)
         this->Ws[i].resize(this->Ws_rows[i], this->Ws_columns[i]);
-        
-    for(auto &W : Ws)
-        this->fill_w(W);
+
+    std::default_random_engine generator(seed);
+    std::uniform_real_distribution<double> distribution(0.0, 1.0);    
+    
+    for(auto &W : Ws){
+        for (int i = 0; i < W.size1(); i++)
+            for (int j = 0; j < W.size2(); j++)
+                W(i, j) = distribution(generator);
+    }
    
     for(int i = 0; i < this->layers; i++)
         this->out_neurons[i].resize(this->n, this->neuronas_by_layer[i]);

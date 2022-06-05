@@ -11,23 +11,23 @@ int main(int argc, char *argv[]){
     if(argc < 4) {
         std::cout << "Too low arguments. Usage: ./main <input_file> <output_file> <layers> ";
         std::cout << "<neurons_in_layer(1)1> <neurons_in_layer(2)> ... <neurons_in_layer(layers)> ";
-        std::cout << "<activation_function> <epoch> <alpha> <debug>\n";
+        std::cout << "<activation_function> <epoch> <alpha> <debug> <seed>\n";
         return 0;
     }
     file_input = argv[1];
     file_output = argv[2];
     int layers = atoi(argv[3]);
-    int arguments = 4 + layers + 4;
+    int arguments = 4 + layers + 5;
     if(argc < arguments){
         std::cout << "Few arguments. Usage: ./main <input_file> <output_file> <layers> ";
         std::cout << "<neurons_in_layer(1)1> <neurons_in_layer(2)> ... <neurons_in_layer(layers)> ";
-        std::cout << "<activation_function> <epoch> <alpha> <debug>\n";
+        std::cout << "<activation_function> <epoch> <alpha> <debug> <seed>\n";
         return 0;
     }
     if(argc > arguments){
         std::cout << "Many arguments. Usage: ./main <input_file> <output_file> <layers> ";
         std::cout << "<neurons_in_layer(1)1> <neurons_in_layer(2)> ... <neurons_in_layer(layers)> ";
-        std::cout << "<activation_function> <epoch> <alpha> <debug>\n";
+        std::cout << "<activation_function> <epoch> <alpha> <debug> <seed>\n";
         return 0;
     }
 
@@ -56,8 +56,11 @@ int main(int argc, char *argv[]){
         return 0;
     }
     bool debug = debug_str == "1";
+    int seed = atoi(argv[8+layers]);
+    if(seed < 1)
+        seed = 1;
     read();
-    mlp.train(x_train, y_train, x_validation, y_validation, epoch, alpha, activation_function_name, debug);
+    mlp.train(x_train, y_train, x_validation, y_validation, epoch, alpha, activation_function_name, seed, debug);
     mlp.predict(x_test, y_test);
     mlp.write_errors(file_output);
     return 0;
