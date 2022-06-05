@@ -442,9 +442,9 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
         this->error(debug);
         this->backward_propagation(debug);
     }
-    std::cout << "out_o_softmax = " << this->out_o_softmax << "\n";
-    std::cout << "y_train = " << this->y_train << "\n";
-    std::cout << "*************************Fin de entrenamiento*************************\n";
+    if(debug) std::cout << "out_o_softmax = " << this->out_o_softmax << "\n";
+    if(debug) std::cout << "y_train = " << this->y_train << "\n";
+    if(debug) std::cout << "*************************Fin de entrenamiento*************************\n";
 }
 
 void MLP::error(bool debug = false){
@@ -477,8 +477,8 @@ void MLP::error(bool debug = false){
     double error_validation = bnu::sum(bnu::prod(bnu::scalar_vector<double>(error_matrix_validation.size1()), error_matrix_validation));
     this->errors_training.push_back(error_training);
     this->errors_validation.push_back(error_validation);
-    std::cout << "Error training: " << error_training << "\n";
-    std::cout << "Error validation: " << error_validation << "\n";
+    if(debug) std::cout << "Error training: " << error_training << "\n";
+    if(debug) std::cout << "Error validation: " << error_validation << "\n";
     if(debug) std::cout << "\n----------Error End-------------\n";
 }
 
@@ -509,11 +509,4 @@ void MLP::write_errors(std::string filename){
     write errors_validation
     write output_model_softmax_matrix
     */
-    /*file.open(filename);
-    file << errors_training.size() << "\n";
-    for(int i = 0; i < this->errors_training.size(); i++)
-        file << this->errors_training[i] << "\n";
-    for(int i = 0; i < this->errors_training.size(); i++)
-        file << this->errors_validation[i] << "\n";   
-    file.close();*/
 }
