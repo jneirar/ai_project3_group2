@@ -386,7 +386,6 @@ MLP::~MLP(){
 }
 
 void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu::matrix<double> &x_validation, bnu::matrix<double> &y_validation, int epochs, double alpha, std::string activation_function_name = "sigmoid", int seed = 0, bool debug = false){
-    //TODO: Función para resetear variables privadas
     this->x_train = x_train;
     this->y_train = y_train;
     this->x_validation = x_validation;
@@ -422,8 +421,12 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
         this->out_neurons[i].resize(this->n, this->neuronas_by_layer[i]);
     
     if(debug){
-        std::cout << "x_train:" << this->x_train << "\n";
-        std::cout << "y_train:" << this->y_train << "\n";
+        std::cout << "x_train: [" << this->x_train.size1() << "." << this->x_train.size2() << "]\n";
+        std::cout << "y_train: [" << this->y_train.size1() << "," << this->y_train.size2() << "]\n";
+        std::cout << "x_validation: [" << this->x_validation.size1() << "," << this->x_validation.size2() << "]\n";
+        std::cout << "y_validation: [" << this->y_validation.size1() << "," << this->y_validation.size2() << "]\n";
+        std::cout << "y_train: [" << this->y_train << "\n";
+        std::cout << "y_validation: [" << this->y_validation << "\n";
         for(int i=0; i<this->neuronas_by_layer.size(); i++)
             std::cout << "layer " << i + 1 << " with " << this->neuronas_by_layer[i] << " neurons\n";
         std::cout << this->Ws_size << " matrices of weights\n";
@@ -440,13 +443,28 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
     }
     if(debug) std::cout << "out_o_softmax = " << this->out_o_softmax << "\n";
     if(debug) std::cout << "y_train = " << this->y_train << "\n";
+    if(debug) std::cout << "out_o_softmax_validation = " << this->output_model_softmax_matrix << "\n";
+    if(debug) std::cout << "y_validation = " << this->y_validation << "\n";
     if(debug) std::cout << "*************************Fin de entrenamiento*************************\n";
 }
 
 void MLP::error(bool debug = false){
+    debug = 1;
     if(debug) std::cout << "\n------------Error---------------\n";
+    //Pasar por forward los x_validation
+    this->output_model_softmax_matrix.resize(this->x_validation.size1(), this->classes);
+    for(int i_validation = 0; i_validation < this->x_validation.size1(); i_validation++){
+        bnu::matrix_row<bnu::matrix<double>> x_validation_row(this->x_validation, i_validation);
+        bnu::matrix_row<bnu::matrix<double>> y_validation_row(this->y_validation, i_validation);
+        bnu::vector<double> x_validation_vector(x_validation_row);
+        this->predict_one(x_validation_vector);
+        
+        //Escribe el output en la matriz
+        for(int i = 0; i < this->classes; i++)
+            this->output_model_softmax_matrix(i_validation, i) = this->output_model_softmax(i);
+    }
     bnu::matrix<double> error_matrix_training = this->out_o_softmax - this->y_train;
-    bnu::matrix<double> error_matrix_validation = this->out_o_softmax - this->y_validation;
+    bnu::matrix<double> error_matrix_validation = this->output_model_softmax_matrix - this->y_validation;
     if(debug){
         std::cout << "out_o = " << this->out_o << "\n";
         std::cout << "out_o_softmax = " << this->out_o_softmax << "\n";
@@ -456,12 +474,12 @@ void MLP::error(bool debug = false){
         std::cout << "error_matrix_validation = " << error_matrix_validation << "\n";
     }
     //boost::range::transform(error_matrix, error_matrix.begin1(), square);
-    for(int i = 0; i < error_matrix_training.size1(); i++){
-        for(int j = 0; j < error_matrix_training.size2(); j++){
+    for(int i = 0; i < error_matrix_training.size1(); i++)
+        for(int j = 0; j < error_matrix_training.size2(); j++)
             error_matrix_training(i, j) = error_matrix_training(i, j) * error_matrix_training(i, j);
+    for(int i = 0; i < error_matrix_validation.size1(); i++)
+        for(int j = 0; j < error_matrix_validation.size2(); j++)
             error_matrix_validation(i, j) = error_matrix_validation(i, j) * error_matrix_validation(i, j);
-        }
-    }
 
     if(debug) std::cout << "square error training = " << error_matrix_training << "\n";
     if(debug) std::cout << "square error validation = " << error_matrix_validation << "\n";
@@ -473,13 +491,15 @@ void MLP::error(bool debug = false){
     double error_validation = bnu::sum(bnu::prod(bnu::scalar_vector<double>(error_matrix_validation.size1()), error_matrix_validation));
     this->errors_training.push_back(error_training);
     this->errors_validation.push_back(error_validation);
-    if(debug) std::cout << "Error training: " << error_training << "\n";
-    if(debug) std::cout << "Error validation: " << error_validation << "\n";
+    //if(debug) std::cout << "Error training: " << error_training << "\n";
+    //if(debug) std::cout << "Error validation: " << error_validation << "\n";
+    std::cout << "Error training: " << error_training << "\n";
+    std::cout << "Error validation: " << error_validation << "\n";
     if(debug) std::cout << "\n----------Error End-------------\n";
 }
 
 void MLP::predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test){
-    output_model_softmax_matrix.resize(x_test.size1(), this->classes);
+    this->output_model_softmax_matrix.resize(x_test.size1(), this->classes);
     for(int i_test = 0; i_test < x_test.size1(); i_test++){
         bnu::matrix_row<bnu::matrix<double>> x_test_row(x_test, i_test);
         bnu::matrix_row<bnu::matrix<double>> y_test_row(y_test, i_test);

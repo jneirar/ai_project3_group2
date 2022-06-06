@@ -7,15 +7,13 @@ bnu::matrix<double> x_train, y_train, x_validation, y_validation, x_test, y_test
 std::string file_input, file_output;
 
 void read(){
-    std::ifstream *file=new std::ifstream("encodes/img_encodings_1.json");
+    std::ifstream *file=new std::ifstream(file_input);
     Json::Value actualJson;
     Json::Reader reader;
     
     reader.parse(*file,actualJson);
-    bnu::matrix<int> a(2,2);
 
-    //cout<<"Total json data:"<<endl<<actualJson<<endl;
-    std::cout<<actualJson["Train"]["Classes"].size()<<std::endl;
+    //std::cout<<actualJson["Train"]["Classes"].size()<<std::endl;
     //cout<<actualJson["Train"]["Images"]<<endl;
     //cout<<actualJson["Validation"]["Classes"]<<endl;
     //cout<<actualJson["Validation"]["Images"]<<endl;
@@ -42,12 +40,12 @@ void read(){
             matrixes.push_back(matr);
         }
     }
-    x_train = matrixes[0];
-    y_train = matrixes[1];
-    x_validation = matrixes[2];
-    y_validation = matrixes[3];
-    x_test = matrixes[4];
-    y_test = matrixes[5];
+    x_train = matrixes[1];
+    y_train = matrixes[0];
+    x_validation = matrixes[3];
+    y_validation = matrixes[2];
+    x_test = matrixes[5];
+    y_test = matrixes[4];
 }
 
 int main(int argc, char *argv[]){
@@ -102,7 +100,9 @@ int main(int argc, char *argv[]){
     int seed = atoi(argv[8+layers]);
     if(seed < 1)
         seed = 1;
+    
     read();
+    
     mlp.train(x_train, y_train, x_validation, y_validation, epoch, alpha, activation_function_name, seed, debug);
     mlp.predict(x_test, y_test);
     mlp.write_errors(file_output);
