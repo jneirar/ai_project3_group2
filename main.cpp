@@ -2,6 +2,7 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include <string>
+#include <typeinfo>
 bnu::matrix<double> x_train, y_train, x_validation, y_validation, x_test, y_test;
 
 std::string file_input, file_output;
@@ -13,10 +14,6 @@ void read(){
     
     reader.parse(*file,actualJson);
 
-    //std::cout<<actualJson["Train"]["Classes"].size()<<std::endl;
-    //cout<<actualJson["Train"]["Images"]<<endl;
-    //cout<<actualJson["Validation"]["Classes"]<<endl;
-    //cout<<actualJson["Validation"]["Images"]<<endl;
     std::vector<std::string> tipos = {"Train","Validation","Test"};
     std::vector<std::string> xy = {"Classes","Images"};
 
@@ -104,7 +101,7 @@ int main(int argc, char *argv[]){
     read();
     
     mlp.train(x_train, y_train, x_validation, y_validation, epoch, alpha, activation_function_name, seed, debug);
-    mlp.predict(x_test, y_test);
+    mlp.predict(x_test, y_test, debug);
     mlp.write_errors(file_output);
     return 0;
 }
