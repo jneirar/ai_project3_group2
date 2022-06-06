@@ -40,7 +40,7 @@ double exponencial(double x){
 
 class MLP{
 private:
-    int limit_debug = 4;
+    int limit_debug = 3;
     int n, m, layers, classes, Ws_size, layer_output;
     bnu::vector<int> neuronas_by_layer;
     std::vector<bnu::matrix<double>> Ws;
@@ -57,6 +57,10 @@ private:
     std::string activation_function_name;
     std::vector<double> errors_training, errors_validation;
 
+    void equal_m_v(bnu::matrix<double> &m, bnu::vector<double> &v){
+        for(int i = 0; i < v.size(); i++)
+            m(0, i) = v(i);
+    }
     void prod_m_v_by_v(bnu::matrix<double> &m, bnu::vector<double> &v1, bnu::vector<double> &v2){
         for(int i = 0; i < v1.size(); i++)
             m(0, i) = v1(i) * v2(i);
@@ -141,7 +145,7 @@ void MLP::forward_propagation(bool for_training, int i_training = 0, bool debug 
 
 void MLP::backward_propagation(bool debug = false){
     if(debug) std::cout << "\n------------Backward propagation------------\n";
-    //Cálculo de las derivadas respecto a W, se suma la derivada de cada dato //TODO: No es por lote
+    //Cálculo de las derivadas respecto a W, se suma la derivada de cada dato
     std::vector<bnu::matrix<double>> Ws_derivades(Ws.size());
     for(int i = 0; i < Ws.size(); i++)
         Ws_derivades[i].resize(this->Ws[i].size1(), this->Ws[i].size2(), 0);
@@ -162,33 +166,23 @@ void MLP::backward_propagation(bool debug = false){
                 bnu::vector<double> out_d_i_vector = bnu::matrix_row<bnu::matrix<double>> (this->y_train, i_data),
                                     out_o_i_vector = bnu::matrix_row<bnu::matrix<double>> (this->out_neurons_register[i_matrix], i_data),
                                     out_o_softmax_i_vector = bnu::matrix_row<bnu::matrix<double>> (this->out_softmax_register, i_data);
-                ;
-                /*bnu::matrix_row<bnu::matrix<double>> out_d_i_vector(this->y_train, i_data), 
-                                                    out_o_i_vector(this->out_neurons_register[i_matrix], i_data), 
-                                                    out_o_softmax_i_vector(this->out_softmax_register, i_data);*/
                 //(S'o - Sd)
                 delta_vector = out_o_softmax_i_vector - out_d_i_vector;
-                //(S'o - Sd) * (S'o)
                 delta.resize(1, delta_vector.size());
-                this->prod_m_v_by_v(delta, delta_vector, out_o_softmax_i_vector);
-                //(1 - S'o)
-                //delta_vector.resize(out_o_softmax_i_vector.size());
-                this->one_minus_v(delta_vector, out_o_softmax_i_vector);
-                //(S'o - Sd) * (S'o) * (1 - S'o)
-                this->prod_m_v(delta, delta_vector);
+                this->equal_m_v(delta, delta_vector);
                 if(this->activation_function_name == "sigmoid"){
                     //Derivada de la función de activación: (1 - So) * (So)
-                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (So) ]
+                    //(S'o - Sd) * [ (So) ]
                     this->prod_m_v(delta, out_o_i_vector);
-                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (So) * (1 - So) ]
+                    //(S'o - Sd) * [ (So) * (1 - So) ]
                     this->one_minus_v(delta_vector, out_o_i_vector);
                     this->prod_m_v(delta, delta_vector);
                 }else if(this->activation_function_name == "tanh"){
                     //Derivada de la función de activación: (1 - So) * (1 + So)
-                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (1 - So) ]
+                    //(S'o - Sd) * [ (1 - So) ]
                     this->one_minus_v(delta_vector, out_o_i_vector);
                     this->prod_m_v(delta, delta_vector);
-                    //(S'o - Sd) * (S'o) * (1 - S'o) * [ (1 - So) * (1 + So) ]
+                    //(S'o - Sd) * [ (1 - So) * (1 + So) ]
                     this->one_plus_v(delta_vector, out_o_i_vector);
                     this->prod_m_v(delta, delta_vector);
                 }else if(this->activation_function_name == "relu"){
@@ -340,7 +334,7 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
         this->Ws[i].resize(this->Ws_rows[i], this->Ws_columns[i]);
 
     std::default_random_engine generator(seed);
-    std::uniform_real_distribution<double> distribution(0.0, 1.0);    
+    std::uniform_real_distribution<double> distribution(-0.5, 0.5);
     
     for(auto &W : Ws){
         for (int i = 0; i < W.size1(); i++)
@@ -401,65 +395,73 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
 }
 
 void MLP::error(bool debug = false){
-    //Utilizo la misma matriz de validation, para training sí necesito una nueva matriz
-    bnu::matrix<double> error_matrix_training = this->out_softmax_register - this->y_train;
     if(debug){
         std::cout << "out training = " << this->out_softmax_register << "\n";
         std::cout << "y_train = " << this->y_train << "\n";
-        std::cout << "error_matrix_training = " << error_matrix_training << "\n";
         std::cout << "out validation = " << this->output_model_softmax_validation << "\n";
         std::cout << "y_validation = " << this->y_validation << "\n";
     }
-    this->output_model_softmax_validation -= this->y_validation;
-    if(debug) std::cout << "error_matrix_validation = " << this->output_model_softmax_validation << "\n";
-    
-    //boost::range::transform(error_matrix, error_matrix.begin1(), square);
-    for(int i = 0; i < error_matrix_training.size1(); i++)
-        for(int j = 0; j < error_matrix_training.size2(); j++)
-            error_matrix_training(i, j) = error_matrix_training(i, j) * error_matrix_training(i, j);
-    for(int i = 0; i < this->output_model_softmax_validation.size1(); i++)
-        for(int j = 0; j < this->output_model_softmax_validation.size2(); j++)
-            this->output_model_softmax_validation(i, j) = this->output_model_softmax_validation(i, j) * this->output_model_softmax_validation(i, j);
+    double error_training = 0.0, error_validation = 0.0;
+    for(int i = 0; i < this->y_train.size1(); i++)
+        for(int j = 0; j < this->y_train.size2(); j++)
+            error_training -= (this->y_train(i, j) * log(this->out_softmax_register(i, j)));
+            
+    for(int i = 0; i < this->y_validation.size1(); i++)
+        for(int j = 0; j < this->y_validation.size2(); j++)
+            error_validation -= (this->y_validation(i, j) * log(this->output_model_softmax_validation(i, j)));    
+    error_training /= this->y_train.size1();
+    error_validation /= this->y_validation.size1();
 
-    if(debug) std::cout << "square error training = " << error_matrix_training << "\n";
-    if(debug) std::cout << "square error validation = " << this->output_model_softmax_validation << "\n";
-    error_matrix_training /= 2.0;
-    this->output_model_softmax_validation /= 2.0;
-    if(debug) std::cout << "square / 2.0 error training = " << error_matrix_training << "\n";
-    if(debug) std::cout << "square / 2.0 error validation = " << this->output_model_softmax_validation << "\n";
-    double error_training = bnu::sum(bnu::prod(bnu::scalar_vector<double>(error_matrix_training.size1()), error_matrix_training));
-    double error_validation = bnu::sum(bnu::prod(bnu::scalar_vector<double>(this->output_model_softmax_validation.size1()), this->output_model_softmax_validation));
     this->errors_training.push_back(error_training);
     this->errors_validation.push_back(error_validation);
     if(debug) std::cout << "Error training: " << error_training << "\n";
     if(debug) std::cout << "Error validation: " << error_validation << "\n";
-    //std::cout << "Error training: " << error_training << "\n";
-    //std::cout << "Error validation: " << error_validation << "\n";
 }
 
 void MLP::predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test, bool debug = false){
     this->output_model_softmax_validation.resize(x_test.size1(), this->classes, 0);
     if(debug) std::cout << "*************************Prediction*************************\n";
+    bool debug_local = debug;
     for(int i_test = 0; i_test < x_test.size1(); i_test++){
         bnu::matrix_row<bnu::matrix<double>> x_row(this->x_train, i_test);
         this->input_model = x_row;
-        if(debug) std::cout << "Input model: " << this->input_model << "\n";
-        this->forward_propagation(false, debug);
+        if(debug_local) std::cout << "Input model: " << this->input_model << "\n";
+        this->forward_propagation(false, i_test, debug_local);
         //Guardar la salida del modelo en output_model_softmax_validation
         for(int j = 0; j < this->output_model_softmax.size(); j++)
             this->output_model_softmax_validation(i_test, j) = this->output_model_softmax(j);
+        if(i_test == this->limit_debug) debug_local = 0;
     }
+    if(debug) std::cout << "output test: " << this->output_model_softmax_validation << "\n";
     if(debug) std::cout << "***********************Prediction End***********************\n";
 }
 
 void MLP::write_errors(std::string filename){
     std::ofstream file;
-    file.open(filename, std::ostream::trunc);
-    for(int i = 0; i < this->errors_training.size(); i++){
+    file.open(filename + "_" + this->activation_function_name + ".txt", std::ostream::trunc);
+    for(int i = 0; i < this->errors_training.size(); i++)
         file << this->errors_training[i] << " " << this->errors_validation[i] << "\n";
-    }
-    file.close();
+    for(int i = 0; i < this->output_model_softmax_validation.size1(); i++){
+        for(int j = 0; j < this->output_model_softmax_validation.size2(); j++)
+            file << this->output_model_softmax_validation(i, j) << " ";
+        file << "\n";
+    }file << "\n";
 
+    file << "Salidas: \n";
+    for(int i = 0; i < this->n; i++){
+        for(int j = 0; j < this->classes; j++){
+            file << this->y_train(i, j) << " ";
+        }
+        file << "\n";
+        for(int j = 0; j < this->classes; j++){
+            file << this->out_softmax_register(i, j) << " ";
+        }
+        file << "\n";
+    }file << "\n";
+
+    
+    file.close();
+    std::cout << this->activation_function_name << " finish\n";
     /*
     write errors_training
     write errors_validation
