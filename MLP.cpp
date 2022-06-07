@@ -18,6 +18,20 @@
 
 namespace bnu = boost::numeric::ublas;
 
+void print_matrix(bnu::matrix<double> &m)
+{
+    for (int i = 0; i < m.size1(); i++)
+    {
+        for (int j = 0; j < m.size2(); j++)
+        {
+            //set precision of double
+            std::cout << std::setw(15) << std::setprecision(8) << std::fixed << m(i, j) << " ";
+        }
+        std::cout << std::endl;
+    }
+}
+
+
 double sigmoid(double x){
     return 1.0/(1.0+exp(-x));
 }
@@ -157,7 +171,8 @@ void MLP::backward_propagation(bool debug = false){
     
     for(int i_matrix = this->Ws_size - 1; i_matrix >= 0; i_matrix--){
         if(debug) std::cout << "In matrix " << i_matrix << ":\n";
-        bool local_debug = debug;
+        //bool local_debug = debug;
+        bool local_debug = 0;
         for(int i_data = 0; i_data < this->n; i_data++){
             if(local_debug) std::cout << "- data " << i_data << ":\n";
             
@@ -274,11 +289,17 @@ void MLP::backward_propagation(bool debug = false){
     //Actualizo Ws
     if(debug){
         std::cout << "\nPrev Ws:\n";
-        for(int i = 0; i < this->Ws_size; i++)
+        for(int i = 0; i < this->Ws_size; i++){
             std::cout << "\tW[" << i << "] = " << this->Ws[i] << "\n";
+            print_matrix(this->Ws[i]); 
+            std::cout << "\n";
+        }
         std::cout << "Ws_derivades:\n";
-        for(int i = 0; i < Ws_derivades.size(); i++)
+        for(int i = 0; i < Ws_derivades.size(); i++){
             std::cout << "\tW_deriv[" << i << "] = " << Ws_derivades[i] << "\n";
+            print_matrix(Ws_derivades[i]);
+            std::cout << "\n";
+        }
     }
     
     for(int i = 0; i < this->Ws.size(); i++)
@@ -286,8 +307,11 @@ void MLP::backward_propagation(bool debug = false){
     
     if(debug){
         std::cout << "Post Ws:\n";
-        for(int i = 0; i < this->Ws_size; i++)
+        for(int i = 0; i < this->Ws_size; i++){
             std::cout << "\tW[" << i << "] = " << this->Ws[i] << "\n";
+            print_matrix(this->Ws[i]);
+            std::cout << "\n";
+        }
     }
     if(debug) std::cout << "\n----------Backward propagation End----------\n";
 }
@@ -362,16 +386,27 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
     for(int epoch = 1; epoch <= epochs; epoch++){
         if(debug) std::cout << "\n*************************Epoch " << epoch << "*************************\n";
         if(debug) std::cout << "\n-------------Forward propagation------------\n";
-        bool local_debug = debug;
+        //bool local_debug = debug;
+        bool local_debug = 0;
         for(int i_data = 0; i_data < this->n; i_data++){
             this->input_model = bnu::matrix_row<bnu::matrix<double>> (this->x_train, i_data);
             if(local_debug) std::cout << "Input model: " << this->input_model << "\n";
             this->forward_propagation(true, i_data, local_debug);
             if(i_data == this->limit_debug) local_debug = 0;
         }
+        if(debug){
+            std::cout << "Salidas de las neuronas por cada dato: \n";
+            for(int i = 0; i < this->out_neurons_register.size(); i++){
+                std::cout << "\nMatrix " << i << ":\n";
+                print_matrix(this->out_neurons_register[i]);
+            }
+            std::cout << "\nSalidas softmax del modelo: \n";
+            print_matrix(this->out_softmax_register);
+        } 
         if(debug) std::cout << "\n-----------Forward propagation End----------\n";
-        if(debug) std::cout << "\n-------Forward propagation For Validation-------\n";
-        local_debug = debug;
+        //if(debug) std::cout << "\n-------Forward propagation For Validation-------\n";
+        //local_debug = debug;
+        local_debug = 0;
         for(int i_data = 0; i_data < this->x_validation.size1(); i_data++){            
             this->input_model = bnu::matrix_row<bnu::matrix<double>> (this->x_validation, i_data);
             if(local_debug) std::cout << "Input model: " << this->input_model << "\n";
@@ -381,7 +416,7 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
                 this->output_model_softmax_validation(i_data, j) = this->output_model_softmax(j);
             if(i_data == this->limit_debug) local_debug = 0;
         }
-        if(debug) std::cout << "\n-----Forward propagation End For Validation-----\n";
+        //if(debug) std::cout << "\n-----Forward propagation End For Validation-----\n";
         if(debug) std::cout << "\n------------Error---------------\n";
         this->error(debug);
         if(debug) std::cout << "\n----------Error End-------------\n";
@@ -391,7 +426,7 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
     if(debug) std::cout << "y_train = " << this->y_train << "\n";
     if(debug) std::cout << "out_validation = " << this->output_model_softmax_validation << "\n";
     if(debug) std::cout << "y_validation = " << this->y_validation << "\n";
-    if(debug) std::cout << "*************************Fin de entrenamiento*************************\n";
+    if(debug) std::cout << "*************************Fin de entrenamiento*************************\n\n";
 }
 
 void MLP::error(bool debug = false){
@@ -420,6 +455,7 @@ void MLP::error(bool debug = false){
 
 void MLP::predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test, bool debug = false){
     this->output_model_softmax_validation.resize(x_test.size1(), this->classes, 0);
+    this->y_validation = y_test;
     if(debug) std::cout << "*************************Prediction*************************\n";
     bool debug_local = debug;
     for(int i_test = 0; i_test < x_test.size1(); i_test++){
@@ -441,24 +477,65 @@ void MLP::write_errors(std::string filename){
     file.open(filename + "_" + this->activation_function_name + ".txt", std::ostream::trunc);
     for(int i = 0; i < this->errors_training.size(); i++)
         file << this->errors_training[i] << " " << this->errors_validation[i] << "\n";
+    int aciertos = 0;
+    file << "\n";
+    file << "Salidas test: \n";
+    double val1, val2;
+    int i1, i2;
     for(int i = 0; i < this->output_model_softmax_validation.size1(); i++){
-        for(int j = 0; j < this->output_model_softmax_validation.size2(); j++)
-            file << this->output_model_softmax_validation(i, j) << " ";
+        i1 = 0;
+        val1 = y_validation(i, 0);
+        for(int j = 0; j < this->classes; j++){
+            file << this->y_validation(i, j) << " ";
+            if(this->y_validation(i, j) > val1){
+                val1 = this->y_validation(i, j);
+                i1 = j;
+            }
+        }
         file << "\n";
-    }file << "\n";
+        i2 = 0;
+        val2 = this->output_model_softmax_validation(i, 0);
+        for(int j = 0; j < this->output_model_softmax_validation.size2(); j++){
+            file << this->output_model_softmax_validation(i, j) << " ";
+            if(this->output_model_softmax_validation(i, j) > val2){
+                val2 = this->output_model_softmax_validation(i, j);
+                i2 = j;
+            }
+        }
+        file << "\n";
+        if(i1 == i2) aciertos++;
+    }
+    file << "\nAciertos: " << aciertos << "/" << this->output_model_softmax_validation.size1() << " = " << (double)aciertos/this->output_model_softmax_validation.size1()*100 << "%\n";
+    std::cout << "\nAciertos test: " << (double)aciertos/this->output_model_softmax_validation.size1()*100 << "%\n";
+    file << "\n";
 
-    file << "Salidas: \n";
+    aciertos = 0;
+    file << "Salidas training: \n";
     for(int i = 0; i < this->n; i++){
+        i1 = 0;
+        i2 = 0;
+        val1 = y_train(i, 0);
         for(int j = 0; j < this->classes; j++){
             file << this->y_train(i, j) << " ";
+            if(this->y_train(i, j) > val1){
+                val1 = this->y_train(i, j);
+                i1 = j;
+            }
         }
         file << "\n";
+        val2 = this->out_softmax_register(i, 0);
         for(int j = 0; j < this->classes; j++){
             file << this->out_softmax_register(i, j) << " ";
+            if(this->out_softmax_register(i, j) > val2){
+                val2 = this->out_softmax_register(i, j);
+                i2 = j;
+            }
         }
+        if(i1 == i2) aciertos++;
         file << "\n";
     }file << "\n";
-
+    file << "\nAciertos: " << aciertos << "/" << this->n << " = " << (double)aciertos/this->n*100 << "%\n\n";
+    std::cout << "\nAciertos training: " << (double)aciertos/this->n*100 << "%\n";
     
     file.close();
     std::cout << this->activation_function_name << " finish\n";

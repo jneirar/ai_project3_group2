@@ -101,7 +101,7 @@ int main(int argc, char *argv[]){
     read();
     
     mlp.train(x_train, y_train, x_validation, y_validation, epoch, alpha, activation_function_name, seed, debug);
-    mlp.predict(x_test, y_test, debug);
+    mlp.predict(x_test, y_test, 0);
     mlp.write_errors(file_output);
     return 0;
 }
