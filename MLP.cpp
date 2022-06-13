@@ -28,6 +28,10 @@ void print_matrix(bnu::matrix<double> &m)
             std::cout << std::setw(15) << std::setprecision(8) << std::fixed << m(i, j) << " ";
         }
         std::cout << std::endl;
+        if(i == 10) {
+            std::cout << "First 10 lines ...\n";
+            break;
+        }
     }
 }
 
@@ -54,7 +58,7 @@ double exponencial(double x){
 
 class MLP{
 private:
-    int limit_debug = 3;
+    int limit_debug = 2;
     int n, m, layers, classes, Ws_size, layer_output;
     bnu::vector<int> neuronas_by_layer;
     std::vector<bnu::matrix<double>> Ws;
@@ -123,6 +127,7 @@ void MLP::forward_propagation(bool for_training, int i_training = 0, bool debug 
         if(debug) std::cout << "For matrix " << i_matrix << ":\n";
         if(debug) std::cout << "\tinput = " << input_layer << "\n";
         if(debug) std::cout << "\tW = " << this->Ws[i_matrix] << "\n";
+        if(debug) print_matrix(this->Ws[i_matrix]);
         
         //Producto input x matriz
         out_layer = bnu::prod(input_layer, Ws[i_matrix]);
@@ -220,7 +225,7 @@ void MLP::backward_propagation(bool debug = false){
                 
                 //Derivada = Si * delta, da una matriz del mismo tamaño que Wi
                 bnu::matrix<double> derivadas_0 = bnu::prod(out_neurons_i, delta);
-                if(local_debug) std::cout << "\tderivadas_ " << i_matrix << " = " << derivadas_0 << "\n";
+                if(local_debug) std::cout << "\tderivadas_" << i_matrix << " = " << derivadas_0 << "\n";
                 //Acumulo la derivada
                 Ws_derivades[i_matrix] += derivadas_0;
             }else{
@@ -390,7 +395,7 @@ void MLP::train(bnu::matrix<double> &x_train, bnu::matrix<double> &y_train, bnu:
         bool local_debug = 0;
         for(int i_data = 0; i_data < this->n; i_data++){
             this->input_model = bnu::matrix_row<bnu::matrix<double>> (this->x_train, i_data);
-            if(local_debug) std::cout << "Input model: " << this->input_model << "\n";
+            if(local_debug) std::cout << "\nInput model: " << this->input_model << "\n";
             this->forward_propagation(true, i_data, local_debug);
             if(i_data == this->limit_debug) local_debug = 0;
         }
