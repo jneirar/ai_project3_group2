@@ -71,6 +71,7 @@ private:
     bnu::matrix<double> x_train, y_train, x_validation, y_validation;
     bnu::vector<double> input_model, output_model_softmax;
     bnu::matrix<double> output_model_softmax_validation;
+    bnu::matrix<double> output_model_softmax_testing;
     
     bnu::matrix<double> out_softmax_register; //for training
     std::vector<bnu::matrix<double>> out_neurons_register; //for training
@@ -463,7 +464,7 @@ void MLP::error(bool debug = false){
 }
 
 void MLP::predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test, bool debug = false){
-    this->output_model_softmax_validation.resize(x_test.size1(), this->classes, 0);
+    this->output_model_softmax_testing.resize(x_test.size1(), this->classes, 0);
     this->y_validation = y_test;
     if(debug) std::cout << "*************************Prediction*************************\n";
     bool debug_local = debug;
@@ -472,12 +473,12 @@ void MLP::predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test, bool
         this->input_model = x_row;
         if(debug_local) std::cout << "Input model: " << this->input_model << "\n";
         this->forward_propagation(false, i_test, debug_local);
-        //Guardar la salida del modelo en output_model_softmax_validation
+        //Guardar la salida del modelo en output_model_softmax_testing
         for(int j = 0; j < this->output_model_softmax.size(); j++)
-            this->output_model_softmax_validation(i_test, j) = this->output_model_softmax(j);
+            this->output_model_softmax_testing(i_test, j) = this->output_model_softmax(j);
         if(i_test == this->limit_debug) debug_local = 0;
     }
-    if(debug) std::cout << "output test: " << this->output_model_softmax_validation << "\n";
+    if(debug) std::cout << "output test: " << this->output_model_softmax_testing << "\n";
     if(debug) std::cout << "***********************Prediction End***********************\n";
 }
 
@@ -565,17 +566,44 @@ void MLP::write_errors(std::string filename){
     Json::Value root;
     root["errors_training"] = iterable2json(this->errors_training);
     root["errors_validation"] = iterable2json(this->errors_validation);
-    size_t n = this->output_model_softmax_validation.size1();
-    size_t m = this->output_model_softmax_validation.size2();
-    Json::Value json_matrix(Json::arrayValue);
+    
+    size_t n = this->output_model_softmax_testing.size1();
+    size_t m = this->output_model_softmax_testing.size2();
+    Json::Value json_matrix_test(Json::arrayValue);
+    for(size_t i = 0; i < n; i++){
+        Json::Value json_array(Json::arrayValue);
+        for(size_t j = 0; j < m; j++){
+            json_array.append(this->output_model_softmax_testing(i,j));
+        }
+        json_matrix_test.append(json_array);
+    }
+    root["output_testing"] = json_matrix_test;
+
+    n = this->out_softmax_register.size1();
+    m = this->out_softmax_register.size2();
+    Json::Value json_matrix_train(Json::arrayValue);
+    for(size_t i = 0; i < n; i++){
+        Json::Value json_array(Json::arrayValue);
+        for(size_t j = 0; j < m; j++){
+            json_array.append(this->out_softmax_register(i,j));
+        }
+        json_matrix_train.append(json_array);
+    }
+    root["output_training"] = json_matrix_train;
+
+    n = this->output_model_softmax_validation.size1();
+    m = this->output_model_softmax_validation.size2();
+    Json::Value json_matrix_validation(Json::arrayValue);
     for(size_t i = 0; i < n; i++){
         Json::Value json_array(Json::arrayValue);
         for(size_t j = 0; j < m; j++){
             json_array.append(this->output_model_softmax_validation(i,j));
         }
-        json_matrix.append(json_array);
+        json_matrix_validation.append(json_array);
     }
-    root["output_model_softmax_validation"] = json_matrix;
+    root["output_validation"] = json_matrix_validation;
+
+
     Json::StyledWriter writer;
     std::ofstream file_json;
     file_json.open(filename + "_" + this->activation_function_name + ".json", std::ostream::trunc);
