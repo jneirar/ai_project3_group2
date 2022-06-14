@@ -16,6 +16,10 @@
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/assignment.hpp>
 
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/value.h>
+#include <jsoncpp/json/writer.h>
+
 namespace bnu = boost::numeric::ublas;
 
 void print_matrix(bnu::matrix<double> &m)
@@ -477,7 +481,17 @@ void MLP::predict(bnu::matrix<double> &x_test, bnu::matrix<double> &y_test, bool
     if(debug) std::cout << "***********************Prediction End***********************\n";
 }
 
+template <typename Iterable>
+Json::Value iterable2json(Iterable const& cont) {
+    Json::Value v;
+    for (auto&& element: cont) {
+        v.append(element);
+     }
+     return v;
+}
+
 void MLP::write_errors(std::string filename){
+    /*
     std::ofstream file;
     file.open(filename + "_" + this->activation_function_name + ".txt", std::ostream::trunc);
     for(int i = 0; i < this->errors_training.size(); i++)
@@ -542,11 +556,31 @@ void MLP::write_errors(std::string filename){
     file << "\nAciertos: " << aciertos << "/" << this->n << " = " << (double)aciertos/this->n*100 << "%\n\n";
     std::cout << "\nAciertos training: " << (double)aciertos/this->n*100 << "%\n";
     
-    file.close();
-    std::cout << this->activation_function_name << " finish\n";
+    file.close();*/
     /*
     write errors_training
     write errors_validation
     write output_model_softmax_matrix
     */
+    Json::Value root;
+    root["errors_training"] = iterable2json(this->errors_training);
+    root["errors_validation"] = iterable2json(this->errors_validation);
+    size_t n = this->output_model_softmax_validation.size1();
+    size_t m = this->output_model_softmax_validation.size2();
+    Json::Value json_matrix(Json::arrayValue);
+    for(size_t i = 0; i < n; i++){
+        Json::Value json_array(Json::arrayValue);
+        for(size_t j = 0; j < m; j++){
+            json_array.append(this->output_model_softmax_validation(i,j));
+        }
+        json_matrix.append(json_array);
+    }
+    root["output_model_softmax_validation"] = json_matrix;
+    Json::StyledWriter writer;
+    std::ofstream file_json;
+    file_json.open(filename + "_" + this->activation_function_name + ".json", std::ostream::trunc);
+    file_json << writer.write(root);
+    file_json.close();
+
+    std::cout << this->activation_function_name << " finish\n";
 }
